@@ -12,10 +12,17 @@ class TodoyeListViewController: UITableViewController {
 
     
     var itemArray = ["Buy Eggs","Hair Cutting","Buy Books"]
+    //persistant data storage
+    var defaults = UserDefaults.standard
     
     override func viewDidLoad() {
         super.viewDidLoad()
-        // Do any additional setup after loading the view, typically from a nib.
+        
+        if let items = defaults.array(forKey: "ToDoListArray") as? [String]{
+            itemArray = items
+        }
+        
+        
     }
 
     
@@ -38,8 +45,6 @@ class TodoyeListViewController: UITableViewController {
     //MARK - TableView delegate methods
     
     override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
-        
-//        print(itemArray[indexPath.row])
         
         //checking if row is checked then remove checkmark otherwise add checkmark
         
@@ -76,6 +81,7 @@ class TodoyeListViewController: UITableViewController {
            // print(myTextField.text!)
             
             self.itemArray.append(myTextField.text!)
+            self.defaults.set(self.itemArray, forKey: "ToDoListArray")
             self.tableView.reloadData()
             
          }
