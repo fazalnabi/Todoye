@@ -1,29 +1,27 @@
-//
-//  ViewController.swift
-//  Todoye
-//
-//  Created by APPLE on 1/21/18.
-//  Copyright © 2018 APPLE. All rights reserved.
-//
+
 
 import UIKit
+import CoreData
 
-class TodoyeListViewController: UITableViewController {
+class TodoyeListViewController: UITableViewController, UISearchBarDelegate {
 
+    @IBOutlet weak var searchBar: UISearchBar!
     
     var itemArray = [Item]()
-    //persistant data storage
-
-    let dataFilePath = FileManager.default.urls(for: .documentDirectory,in: .userDomainMask).first?.appendingPathComponent("Item.plist")
+    
+    var selectedCategory : Category?{
+        
+        didSet{
+            loadItems()
+        }
+    }
+//    let dataFilePath = FileManager.default.urls(for: .documentDirectory,in: .userDomainMask).first?.appendingPathComponent("Item.plist")
+    let context = (UIApplication.shared.delegate as! AppDelegate).persistentContainer.viewContext
     
     override func viewDidLoad() {
         super.viewDidLoad()
 
-        
-        print(dataFilePath)
-        
-        loadItems()
-        
+        print(FileManager.default.urls(for: .documentDirectory, in: .userDomainMask))
         
     }
 
@@ -56,7 +54,15 @@ class TodoyeListViewController: UITableViewController {
     
     override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         
-        itemArray[indexPath.row].done = !itemArray[indexPath.row].done
+        /*
+        for deleting items from Table view and CoreData we first delete item
+        from CoreData and then from table view and after that save the context to commit changes in the CoreData otherwise app will crash*/
+        
+//        context.delete(itemArray[indexPath.row])
+//        itemArray.remove(at: indexPath.row)
+        
+        
+       itemArray[indexPath.row].done = !itemArray[indexPath.row].done
         
         self.savaItem()
         tableView.reloadData()
@@ -81,8 +87,11 @@ class TodoyeListViewController: UITableViewController {
         let action = UIAlertAction(title: "Add Item", style: .default) { (action) in
             //what will happen when user click add item
         
-            let newItem = Item()
+
+            let newItem = Item(context: self.context)
             newItem.title = myTextField.text!
+            newItem.done = false
+            newItem.category = self.selectedCategory
             self.itemArray.append(newItem)
 
             self.savaItem()
@@ -105,31 +114,68 @@ class TodoyeListViewController: UITableViewController {
     
     //MARK - Model Manupulation Method
     func savaItem(){
-        let encoder = PropertyListEncoder()
         do{
-            let data = try encoder.encode(itemArray)
-            try data.write(to: dataFilePath!)
+      
+            try context.save()
         }
         catch{
-            print("Error encoding item array : \(error)")
+            print("Error saving context : \(error)")
         }
     }
     
-    func loadItems(){
+    /*
+     "with" is an outer parameter and is used at the time of calling function and expression after "=" is used as default value if we do no pass parameter to the function at the time of calling */
+    
+    func loadItems(with request : NSFetchRequest<Item> = Item.fetchRequest(), predicate : NSPredicate? = nil){
+
+        let categoryPredicate = NSPredicate(format: "category.name MATCHES %@", selectedCategory!.name!)
+
+        if let additionalPredicate = predicate{
+            
+            request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [categoryPredicate, additionalPredicate])
+        }
+        else{
+            request.predicate = categoryPredicate
+        }
         
-        if let data = try? Data(contentsOf: dataFilePath!){
+        do{
+           itemArray =  try context.fetch(request)
+        }
+        catch{
+            print("Error while retreiving data \(error)")
+        }
+        
+        tableView.reloadData()
+    }
+    
+    //MARK: - Search Bar delegate method
+    
+    func searchBarSearchButtonClicked(_ searchBar: UISearchBar) {
+        
+        let request : NSFetchRequest<Item> = Item.fetchRequest()
+        
+        //for adding condition like where clause in mysql
+        let predicate = NSPredicate(format: "title CONTAINS[cd] %@", searchBar.text!)
+        request.predicate = predicate
+        
+        //sorting data in ascending order
+        let sorDiscriptor = NSSortDescriptor(key: "title", ascending: true)
+        request.sortDescriptors = [sorDiscriptor]
+        
+        loadItems(with : request, predicate: predicate)
+        
+
+    }
+    
+    func searchBar(_ searchBar: UISearchBar, textDidChange searchText: String) {
+        if searchBar.text?.count == 0{
+            loadItems()
             
-            let decoder = PropertyListDecoder()
-            
-            do{
-                itemArray = try decoder.decode([Item].self, from: data)
-                
-            }catch {
-                print("Error in decoding data \(error)")
+            DispatchQueue.main.async {
+                searchBar.resignFirstResponder()
             }
         }
     }
-    
     
 }
 
